@@ -57,8 +57,12 @@ CORS_ORIGINS = [o.strip() for o in _cors_env.split(",") if o.strip()]
 class AuditResult(BaseModel):
     """Mirror of the model Gemini is expected to return."""
 
+    transcribed_name: str
+    transcribed_address: str
+    transcribed_date: str
+    transcribed_signatures: str
     is_clean_no_overwriting: bool
-    is_within_date_limit: bool
+    is_date_valid: bool
     has_two_signatures: bool
     has_item_box: bool
     has_store_details: bool
@@ -197,8 +201,12 @@ def save_audit(db: firestore.firestore.Client, result: AuditResult, start_date: 
     """Synchronous Firestore write (run via asyncio.to_thread)."""
     _, doc_ref = db.collection(FIRESTORE_COLLECTION).add(
         {
+            "transcribed_name": result.transcribed_name,
+            "transcribed_address": result.transcribed_address,
+            "transcribed_date": result.transcribed_date,
+            "transcribed_signatures": result.transcribed_signatures,
             "is_clean_no_overwriting": result.is_clean_no_overwriting,
-            "is_within_date_limit": result.is_within_date_limit,
+            "is_date_valid": result.is_date_valid,
             "has_two_signatures": result.has_two_signatures,
             "has_item_box": result.has_item_box,
             "has_store_details": result.has_store_details,

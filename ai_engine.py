@@ -1,43 +1,54 @@
 import os
-import json
 import logging
-from dateutil import parser
+import json
+from datetime import datetime
 from google import genai
 from google.genai.types import GenerateContentConfig, Part
 from pydantic import BaseModel
 
 logger = logging.getLogger("receipt-auditor")
 
-# 1. Scratchpad is FIRST so the AI thinks before answering
 class BillAudit(BaseModel):
-    analysis_scratchpad: str 
+    transcribed_name: str
+    transcribed_address: str
+    transcribed_date: str
+    transcribed_signatures: str
     is_clean_no_overwriting: bool
     has_two_signatures: bool
     has_item_box: bool
     has_store_details: bool
     has_bracu_client_details: bool
-    receipt_date_str: str 
-    extracted_items_total: float 
-    stated_grand_total: float 
+    is_date_valid: bool
+    is_math_correct: bool
+    total_amount: float
+    status: str
+    reasoning: str
 
 def audit_receipt_with_gemini(image_bytes: bytes, start_date: str, end_date: str, mime_type: str = "image/jpeg") -> str:
-    prompt = """You are a strict financial auditor for BRAC University. Note: The receipt may contain Bengali (Bangla) text or numbers. You must intelligently translate any Bangla dates, numbers, and writings to English before evaluating.
-
-First, use 'analysis_scratchpad' to transcribe the receipt text, identify the store details, signatures, and list out the prices and quantities step-by-step.
-
-Then, evaluate these rules:
-1. No Overwriting: Is it clear with no crossed-out numbers?
-2. Signatures: Are there exactly two dedicated signature boxes or lines at the bottom? Look closely for faint marks.
-3. Item Box: Is there a separate itemized table?
-4. Store Details: Are the Store Name, Phone, and Location at the top?
-5. Client Details: Does the recipient Name contain "BUCC" (or "BRACU"), AND/OR the Address contain "BRAC University"?
-
-Extract the raw date written on the receipt into 'receipt_date_str' (or "Unknown" if missing).
-Calculate the sum of the individual items you see and put it in 'extracted_items_total'.
-Extract the final total printed on the receipt into 'stated_grand_total' (or 0.0 if none exists).
-IMPORTANT: Do not say the image is corrupted just because it is messy or in Bangla.
-"""
+    prompt = f"""You are a strict financial auditor for student organizations at BRAC University.
+    Inspect this cash memo image carefully. Blue or black handwritten text across lines and folds must be read thoroughly.
     
+    Target Event Date Range: {start_date} to {end_date}
+    
+    Step 1: First, transcribe the exact handwritten content:
+    - transcribed_name: What is written next to 'Name:'?
+    - transcribed_address: What is written next to 'Address:'?
+    - transcribed_date: What is written next to 'Date:'? (Note: dates follow DD/MM/YY format, e.g., 08/10/26 = 8th October 2026).
+    - transcribed_signatures: Describe what appears in the customer and authorized signature areas at the bottom.
+    
+    Step 2: Evaluate the 7 rules:
+    1. is_clean_no_overwriting: True if there is no heavy scribbling, crossing out, or tampering over amounts or text.
+    2. has_two_signatures: True if there are marks, signatures, or written names in both bottom signature spaces (e.g. a written name like 'Fahim' on the customer line counts as a customer signature).
+    3. has_item_box: True if there is a distinct table or lined grid detailing items.
+    4. has_store_details: True if the vendor name, phone number, and location are visible at the top.
+    5. has_bracu_client_details: True if the client section (Name or Address) contains 'BRACU', 'BRAC University', or recognized university clubs/acronyms (such as 'BUCC').
+    6. is_date_valid: True if the transcribed date falls between {start_date} and {end_date} (inclusive). Remember that 08/10/26 is 8 October 2026.
+    7. is_math_correct: True if the unit prices multiplied by quantities equal the line totals, and match the grand total.
+    
+    Extract total_amount.
+    Set status to 'Pass' ONLY if all boolean rules are True. Otherwise, set status to 'Flag' and explain why in reasoning.
+    """
+
     image_part = Part.from_bytes(data=image_bytes, mime_type=mime_type)
 
     api_keys = [
@@ -50,7 +61,6 @@ IMPORTANT: Do not say the image is corrupted just because it is messy or in Bang
         api_keys = [None]
         
     last_exception = None
-    data = None
     
     for i, key in enumerate(api_keys):
         try:
@@ -64,8 +74,7 @@ IMPORTANT: Do not say the image is corrupted just because it is messy or in Bang
                     temperature=0.0
                 )
             )
-            data = json.loads(response.text)
-            break
+            return response.text
         except Exception as e:
             last_exception = e
             error_str = str(e).upper()
@@ -76,43 +85,4 @@ IMPORTANT: Do not say the image is corrupted just because it is messy or in Bang
             else:
                 raise e
                 
-    if not data:
-        raise last_exception
-    
-    # 2. Python securely handles the Math and Logic
-    is_math_correct = abs(data['extracted_items_total'] - data['stated_grand_total']) < 0.01
-    
-    is_within_date_limit = False
-    try:
-        r_date = parser.parse(data['receipt_date_str']).date()
-        s_date = parser.parse(start_date).date()
-        e_date = parser.parse(end_date).date()
-        is_within_date_limit = s_date <= r_date <= e_date
-    except Exception:
-        pass # If the date is unreadable, it fails the check
-        
-    all_passed = (
-        data['is_clean_no_overwriting'] and 
-        data['has_two_signatures'] and 
-        data['has_item_box'] and 
-        data['has_store_details'] and 
-        data['has_bracu_client_details'] and 
-        is_math_correct and 
-        is_within_date_limit
-    )
-    
-    # Match the original JSON structure expected by main.py
-    final_result = {
-        "is_clean_no_overwriting": data['is_clean_no_overwriting'],
-        "is_within_date_limit": is_within_date_limit,
-        "has_two_signatures": data['has_two_signatures'],
-        "has_item_box": data['has_item_box'],
-        "has_store_details": data['has_store_details'],
-        "has_bracu_client_details": data['has_bracu_client_details'],
-        "is_math_correct": is_math_correct,
-        "status": 'Pass' if all_passed else 'Flag',
-        "total_amount": data['stated_grand_total'],
-        "reasoning": data['analysis_scratchpad']
-    }
-    
-    return json.dumps(final_result)
+    raise last_exception
