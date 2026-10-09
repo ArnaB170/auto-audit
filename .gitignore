@@ -1,0 +1,5 @@
+__pycache__/
+*.pyc
+.env
+firebase-adminsdk.json
+test_gemini.py
