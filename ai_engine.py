@@ -25,7 +25,7 @@ def audit_receipt_with_gemini(image_bytes: bytes, start_date: str, end_date: str
     3. Signatures: The receipt must contain exactly two DEDICATED signature boxes or lines at the bottom (usually one for the Customer and one for the Authorized signature). Look closely directly above BOTH boxes/lines. Even if the ink is very faint, smudged, or just a small dot, you must consider it valid. If there are two dedicated signature areas and they have any marks, assume both signatures are present.
     4. Item Box: The receipt must have a separate box or itemized table in the middle detailing the goods.
     5. Store Details: The top of the receipt must include the Store Name, Contact/Phone Number, and Store Location (translate from Bangla if necessary).
-    6. Client Details: The recipient/client name OR address must contain "BRACU", "BRAC University", or "BUCC". (If any of these are written in either the Name or Address field, it counts as valid).
+    6. Client Details: Check the client details on the receipt. The recipient Name must contain "BUCC" (or "BRACU"), AND/OR the Address must contain "BRAC University". (If you find any of these in the client details section, it counts as valid).
     
     If ALL 6 rules are perfectly followed (all booleans are true), set status to 'Pass'. If ANY rule fails, set status to 'Flag'.
     In the reasoning field, explicitly list which specific rules failed and why. 
