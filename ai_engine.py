@@ -1,47 +1,118 @@
 import os
+import json
+import logging
+from dateutil import parser
 from google import genai
 from google.genai.types import GenerateContentConfig, Part
 from pydantic import BaseModel
 
-client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
+logger = logging.getLogger("receipt-auditor")
 
+# 1. Scratchpad is FIRST so the AI thinks before answering
 class BillAudit(BaseModel):
+    analysis_scratchpad: str 
     is_clean_no_overwriting: bool
-    is_within_date_limit: bool
     has_two_signatures: bool
     has_item_box: bool
     has_store_details: bool
     has_bracu_client_details: bool
-    status: str
-    reasoning: str
+    receipt_date_str: str 
+    extracted_items_total: float 
+    stated_grand_total: float 
 
 def audit_receipt_with_gemini(image_bytes: bytes, start_date: str, end_date: str, mime_type: str = "image/jpeg") -> str:
-    """Sends the receipt image to Gemini 1.5 Flash to verify 7 strict OCA rules."""
-    
-    prompt = f"""You are a strict financial auditor for BRAC University. Review this receipt image based on the following 6 OCA rules. Note: The receipt may contain Bengali (Bangla) text or numbers. You must intelligently translate any Bangla dates, numbers, and writings to English before evaluating these rules.
-    
-    1. No Overwriting: The receipt must be clear with no overwriting, crossed-out numbers, or tampered text.
-    2. Date Limits: The receipt must have a visible date (translate from Bangla if necessary), and it must fall strictly between {start_date} and {end_date} (inclusive). Note that the date format on the receipt might be DD/MM/YY or DD/MM/YYYY (e.g., 04/10/26 means October 4, 2026).
-    3. Signatures: The receipt must contain exactly two DEDICATED signature boxes or lines at the bottom (usually one for the Customer and one for the Authorized signature). Look closely directly above BOTH boxes/lines. Even if the ink is very faint, smudged, or just a small dot, you must consider it valid. If there are two dedicated signature areas and they have any marks, assume both signatures are present.
-    4. Item Box: The receipt must have a separate box or itemized table in the middle detailing the goods.
-    5. Store Details: The top of the receipt must include the Store Name, Contact/Phone Number, and Store Location (translate from Bangla if necessary).
-    6. Client Details: Check the client details on the receipt. The recipient Name must contain "BUCC" (or "BRACU"), AND/OR the Address must contain "BRAC University". (If you find any of these in the client details section, it counts as valid).
-    
-    If ALL 6 rules are perfectly followed (all booleans are true), set status to 'Pass'. If ANY rule fails, set status to 'Flag'.
-    In the reasoning field, explicitly list which specific rules failed and why. 
-    IMPORTANT: Do NOT claim the image is corrupted, binary, or unreadable just because the handwriting is extremely messy, faint, or in Bangla. If you can see that it's a piece of paper, just evaluate the rules as best as you can and mark missing fields as false!
-    """
+    prompt = """You are a strict financial auditor for BRAC University. Note: The receipt may contain Bengali (Bangla) text or numbers. You must intelligently translate any Bangla dates, numbers, and writings to English before evaluating.
+
+First, use 'analysis_scratchpad' to transcribe the receipt text, identify the store details, signatures, and list out the prices and quantities step-by-step.
+
+Then, evaluate these rules:
+1. No Overwriting: Is it clear with no crossed-out numbers?
+2. Signatures: Are there exactly two dedicated signature boxes or lines at the bottom? Look closely for faint marks.
+3. Item Box: Is there a separate itemized table?
+4. Store Details: Are the Store Name, Phone, and Location at the top?
+5. Client Details: Does the recipient Name contain "BUCC" (or "BRACU"), AND/OR the Address contain "BRAC University"?
+
+Extract the raw date written on the receipt into 'receipt_date_str' (or "Unknown" if missing).
+Calculate the sum of the individual items you see and put it in 'extracted_items_total'.
+Extract the final total printed on the receipt into 'stated_grand_total' (or 0.0 if none exists).
+IMPORTANT: Do not say the image is corrupted just because it is messy or in Bangla.
+"""
     
     image_part = Part.from_bytes(data=image_bytes, mime_type=mime_type)
 
-    response = client.models.generate_content(
-        model='gemini-3.5-flash',
-        contents=[prompt, image_part],
-        config=GenerateContentConfig(
-            response_mime_type="application/json",
-            response_schema=BillAudit,
-            temperature=0.0
-        )
+    api_keys = [
+        os.environ.get("GEMINI_API_KEY_1"),
+        os.environ.get("GEMINI_API_KEY_2"),
+        os.environ.get("GEMINI_API_KEY")
+    ]
+    api_keys = [k for k in api_keys if k]
+    if not api_keys:
+        api_keys = [None]
+        
+    last_exception = None
+    data = None
+    
+    for i, key in enumerate(api_keys):
+        try:
+            client = genai.Client(api_key=key) if key else genai.Client()
+            response = client.models.generate_content(
+                model='gemini-3.5-flash',
+                contents=[prompt, image_part],
+                config=GenerateContentConfig(
+                    response_mime_type="application/json",
+                    response_schema=BillAudit,
+                    temperature=0.0
+                )
+            )
+            data = json.loads(response.text)
+            break
+        except Exception as e:
+            last_exception = e
+            error_str = str(e).upper()
+            if "429" in error_str or "RESOURCE_EXHAUSTED" in error_str or "RATE LIMIT" in error_str:
+                logger.warning(f"Key {i+1} hit rate limit (429). Switching to next key...")
+                print(f"Key {i+1} hit rate limit (429). Switching to next key...")
+                continue
+            else:
+                raise e
+                
+    if not data:
+        raise last_exception
+    
+    # 2. Python securely handles the Math and Logic
+    is_math_correct = abs(data['extracted_items_total'] - data['stated_grand_total']) < 0.01
+    
+    is_within_date_limit = False
+    try:
+        r_date = parser.parse(data['receipt_date_str']).date()
+        s_date = parser.parse(start_date).date()
+        e_date = parser.parse(end_date).date()
+        is_within_date_limit = s_date <= r_date <= e_date
+    except Exception:
+        pass # If the date is unreadable, it fails the check
+        
+    all_passed = (
+        data['is_clean_no_overwriting'] and 
+        data['has_two_signatures'] and 
+        data['has_item_box'] and 
+        data['has_store_details'] and 
+        data['has_bracu_client_details'] and 
+        is_math_correct and 
+        is_within_date_limit
     )
     
-    return response.text
+    # Match the original JSON structure expected by main.py
+    final_result = {
+        "is_clean_no_overwriting": data['is_clean_no_overwriting'],
+        "is_within_date_limit": is_within_date_limit,
+        "has_two_signatures": data['has_two_signatures'],
+        "has_item_box": data['has_item_box'],
+        "has_store_details": data['has_store_details'],
+        "has_bracu_client_details": data['has_bracu_client_details'],
+        "is_math_correct": is_math_correct,
+        "status": 'Pass' if all_passed else 'Flag',
+        "total_amount": data['stated_grand_total'],
+        "reasoning": data['analysis_scratchpad']
+    }
+    
+    return json.dumps(final_result)

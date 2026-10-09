@@ -63,7 +63,9 @@ class AuditResult(BaseModel):
     has_item_box: bool
     has_store_details: bool
     has_bracu_client_details: bool
+    is_math_correct: bool
     status: str
+    total_amount: float
     reasoning: str
 
 
@@ -201,6 +203,8 @@ def save_audit(db: firestore.firestore.Client, result: AuditResult, start_date: 
             "has_item_box": result.has_item_box,
             "has_store_details": result.has_store_details,
             "has_bracu_client_details": result.has_bracu_client_details,
+            "is_math_correct": result.is_math_correct,
+            "total_amount": result.total_amount,
             "status": result.status,
             "reasoning": result.reasoning,
             "start_date": start_date,
