@@ -51,17 +51,12 @@ def audit_receipt_with_gemini(image_bytes: bytes, start_date: str, end_date: str
 
     image_part = Part.from_bytes(data=image_bytes, mime_type=mime_type)
 
-    api_keys = [
-        os.environ.get("GEMINI_API_KEY_1"),
-        os.environ.get("GEMINI_API_KEY_2"),
-        os.environ.get("GEMINI_API_KEY")
-    ]
-    api_keys = [k for k in api_keys if k]
+    api_keys = [os.environ.get(f"GEMINI_API_KEY_{i}") for i in range(1, 5) if os.environ.get(f"GEMINI_API_KEY_{i}")]
     if not api_keys:
+        api_keys = [os.environ.get("GEMINI_API_KEY")]
+    if not api_keys[0]:
         api_keys = [None]
         
-    last_exception = None
-    
     for i, key in enumerate(api_keys):
         try:
             client = genai.Client(api_key=key) if key else genai.Client()
@@ -76,13 +71,12 @@ def audit_receipt_with_gemini(image_bytes: bytes, start_date: str, end_date: str
             )
             return response.text
         except Exception as e:
-            last_exception = e
-            error_str = str(e).upper()
-            if "429" in error_str or "RESOURCE_EXHAUSTED" in error_str or "RATE LIMIT" in error_str:
-                logger.warning(f"Key {i+1} hit rate limit (429). Switching to next key...")
-                print(f"Key {i+1} hit rate limit (429). Switching to next key...")
+            error_str = str(e).lower()
+            if "429" in error_str or "quota" in error_str or "rate limit" in error_str or "resource_exhausted" in error_str:
+                logger.warning(f"Key {i+1} reached limit, switching to next key...")
+                print(f"Key {i+1} reached limit, switching to next key...")
                 continue
             else:
                 raise e
                 
-    raise last_exception
+    raise Exception("All API keys have reached their rate limits.")
