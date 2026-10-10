@@ -54,23 +54,7 @@ CORS_ORIGINS = [o.strip() for o in _cors_env.split(",") if o.strip()]
 # --------------------------------------------------------------------------- #
 # Schemas
 # --------------------------------------------------------------------------- #
-class AuditResult(BaseModel):
-    """Mirror of the model Gemini is expected to return."""
-
-    transcribed_name: str
-    transcribed_address: str
-    transcribed_date: str
-    transcribed_signatures: str
-    is_clean_no_overwriting: bool
-    is_date_valid: bool
-    has_two_signatures: bool
-    has_item_box: bool
-    has_store_details: bool
-    has_bracu_client_details: bool
-    status: str
-    total_amount: float
-    reasoning: str
-
+from ai_engine import BillAudit as AuditResult
 
 class AuditResponse(AuditResult):
     id: str
@@ -198,26 +182,12 @@ def parse_gemini_json(raw: str) -> AuditResult:
 
 def save_audit(db: firestore.firestore.Client, result: AuditResult, start_date: str, end_date: str) -> str:
     """Synchronous Firestore write (run via asyncio.to_thread)."""
-    _, doc_ref = db.collection(FIRESTORE_COLLECTION).add(
-        {
-            "transcribed_name": result.transcribed_name,
-            "transcribed_address": result.transcribed_address,
-            "transcribed_date": result.transcribed_date,
-            "transcribed_signatures": result.transcribed_signatures,
-            "is_clean_no_overwriting": result.is_clean_no_overwriting,
-            "is_date_valid": result.is_date_valid,
-            "has_two_signatures": result.has_two_signatures,
-            "has_item_box": result.has_item_box,
-            "has_store_details": result.has_store_details,
-            "has_bracu_client_details": result.has_bracu_client_details,
-            "total_amount": result.total_amount,
-            "status": result.status,
-            "reasoning": result.reasoning,
-            "start_date": start_date,
-            "end_date": end_date,
-            "timestamp": firestore.SERVER_TIMESTAMP,
-        }
-    )
+    payload = result.model_dump()
+    payload["start_date"] = start_date
+    payload["end_date"] = end_date
+    payload["timestamp"] = firestore.SERVER_TIMESTAMP
+
+    _, doc_ref = db.collection(FIRESTORE_COLLECTION).add(payload)
     return doc_ref.id
 
 
