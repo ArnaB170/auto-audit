@@ -74,11 +74,11 @@ def audit_receipt_with_gemini(image_bytes: bytes, start_date: str, end_date: str
             return response.text
         except Exception as e:
             error_str = str(e).lower()
-            if "429" in error_str or "quota" in error_str or "rate limit" in error_str or "resource_exhausted" in error_str:
-                logger.warning(f"Key {i+1} reached limit, switching to next key...")
-                print(f"Key {i+1} reached limit, switching to next key...")
+            if "429" in error_str or "quota" in error_str or "rate limit" in error_str or "resource_exhausted" in error_str or "503" in error_str or "unavailable" in error_str:
+                logger.warning(f"Key {i+1} reached limit or 503, switching to next key...")
+                print(f"Key {i+1} reached limit or 503, switching to next key...")
                 continue
             else:
                 raise e
                 
-    raise Exception("All API keys have reached their rate limits.")
+    raise Exception("All API keys have reached their rate limits or the service is completely overloaded.")

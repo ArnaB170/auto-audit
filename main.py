@@ -128,17 +128,17 @@ def is_rate_limit_error(exc: BaseException) -> bool:
                 value = value()
             except Exception:
                 value = None
-        if value == 429:
+        if value == 429 or value == 503:
             return True
-        if getattr(value, "name", "") == "RESOURCE_EXHAUSTED":
+        if getattr(value, "name", "") in ("RESOURCE_EXHAUSTED", "UNAVAILABLE"):
             return True
 
     response = getattr(exc, "response", None)
-    if getattr(response, "status_code", None) == 429:
+    if getattr(response, "status_code", None) in (429, 503):
         return True
 
     text = str(exc).upper()
-    return "429" in text or "RESOURCE_EXHAUSTED" in text or "RATE LIMIT" in text
+    return "429" in text or "RESOURCE_EXHAUSTED" in text or "RATE LIMIT" in text or "503" in text or "UNAVAILABLE" in text
 
 
 async def call_gemini_with_backoff(image_bytes: bytes, mime_type: str, start_date: str, end_date: str) -> str:
