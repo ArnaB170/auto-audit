@@ -175,4 +175,4 @@ OUTPUT REQUIREMENTS
             else:
                 raise e
                 
-    raise Exception("All API keys have reached their rate limits or the service is completely overloaded.")
+    raise Exception(f"Failed. Found {len(api_keys)} keys. All API keys have reached their rate limits or the service is completely overloaded.")

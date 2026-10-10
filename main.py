@@ -142,13 +142,13 @@ async def call_gemini_with_backoff(image_bytes: bytes, mime_type: str, start_dat
         except Exception as exc:
             if not is_rate_limit_error(exc):
                 logger.exception("Gemini call failed with a non-retryable error.")
-                raise HTTPException(status_code=502, detail="The AI service failed to process the receipt.")
+                raise HTTPException(status_code=502, detail=f"The AI service failed: {str(exc)}")
 
             if attempt == MAX_RETRIES:
                 logger.error("Gemini rate limit persisted after %d retries.", MAX_RETRIES)
                 raise HTTPException(
                     status_code=429,
-                    detail="The AI service is rate limited. Please try again shortly.",
+                    detail=f"Rate limited after {MAX_RETRIES} retries. Internal error: {str(exc)}",
                     headers={"Retry-After": str(int(delay))},
                 )
 
