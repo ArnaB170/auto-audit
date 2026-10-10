@@ -47,6 +47,8 @@ def audit_receipt_with_gemini(image_bytes: bytes, start_date: str, end_date: str
     
     Extract total_amount.
     Set status to 'Pass' ONLY if all boolean rules are True. Otherwise, set status to 'Flag' and explain why in reasoning.
+    
+    IMPORTANT: Do NOT claim the image is corrupted, binary, or unreadable just because the handwriting is extremely messy, faint, or in Bangla. If you can see that it's a piece of paper, evaluate the rules as best as you can. If a field is entirely missing or unreadable, transcribe it as "N/A" and mark the respective boolean as false.
     """
 
     image_part = Part.from_bytes(data=image_bytes, mime_type=mime_type)
