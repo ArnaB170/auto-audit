@@ -76,6 +76,12 @@ LOCAL CONVENTIONS YOU MUST KNOW
 - Item descriptions are frequently handwritten in Bengali (or mixed Bengali/English). This is valid. Bengali numerals (০১২৩৪৫৬৭৮৯) must be converted to Western digits (0-9) before doing math.
 - Vendors draw long vertical lines, diagonal strokes, curved lines, or "Z" shaped lines through the EMPTY rows of the item table. This is a standard anti-fraud practice that prevents extra items being added later. It is NOT overwriting or tampering.
 - Background stamps or watermarks (for example "B-kash", "bKash", "Paid", "Received", shop seals) are NOT tampering. Ignore them.
+- Printed field labels may be in Bengali: নং (No.), তারিখ (Date), নাম (Name), ঠিকানা (Address), মালের বিবরণ (Description), কেজি/বস্তা (Qty/Unit), টাকা (Amount). Treat these exactly like their English equivalents.
+- Dates and amounts may be written in Bengali numerals (০১২৩৪৫৬৭৮৯). Convert to Western digits before parsing.
+- Some receipts have NO Rate column (only Description, Qty, Amount). In that case do not fail the math rule for a missing rate. Check only that the sum of all line amounts equals the Grand Total.
+- Horizontal lines drawn under or between amounts are ruling/underline strokes, not strikethroughs or tampering.
+- Ignore everything outside the receipt paper itself (notebooks, tables, handwriting on other papers in the photo).
+- Do not treat blank client fields as unreadable handwriting. If the Name and Address lines are empty, record them as "BLANK".
 
 STEP 1: SCRATCHPAD TRANSCRIPTION (mandatory, do this before any True/False judgment)
 Carefully read the image and record the following in the "scratchpad" field of your output.
@@ -117,7 +123,7 @@ RULE 5: store_details_present
 - FAIL if any of the three is missing, and name which one in the reason.
 
 RULE 6: client_details_correct
-- Check BOTH the "Name:" line and the "Address:" line. The expected client is BRAC University. At least one of these lines (or both, if only one is filled) must clearly refer to the university.
+- If BOTH the নাম/Name and ঠিকানা/Address lines are blank, FAIL and state "client name and address are blank". Never infer the client from context.
 - The handwriting for "BRAC University" is often messy cursive. Use fuzzy matching: forgive missing, extra, merged, or swapped letters and spelling artifacts. Treat obvious variants (for example "Brac Univercity", "BRAC Univ.", "BracU", "Brac Uni", "Bract University") as a match.
 - ALWAYS ACCEPT these as valid: "BUCC", "BRACU", "BRAC University" (any casing, punctuation, or spacing, and also Bengali transliterations such as ব্র্যাক ইউনিভার্সিটি).
 - FAIL only if both lines are blank or clearly refer to a different entity or person with no resemblance to the accepted names.
