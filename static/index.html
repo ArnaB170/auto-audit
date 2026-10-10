@@ -82,7 +82,16 @@
                 });
 
                 if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
+                    let errorDetail = `HTTP error! status: ${response.status}`;
+                    try {
+                        const errorData = await response.json();
+                        if (errorData.detail) {
+                            errorDetail = errorData.detail;
+                        }
+                    } catch (e) {
+                        // Ignore JSON parsing errors for non-JSON responses
+                    }
+                    throw new Error(errorDetail);
                 }
 
                 const data = await response.json();
