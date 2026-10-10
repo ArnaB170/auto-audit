@@ -19,7 +19,6 @@ class BillAudit(BaseModel):
     has_store_details: bool
     has_bracu_client_details: bool
     is_date_valid: bool
-    is_math_correct: bool
     total_amount: float
     status: str
     reasoning: str
@@ -36,17 +35,16 @@ def audit_receipt_with_gemini(image_bytes: bytes, start_date: str, end_date: str
     - transcribed_date: What is written next to 'Date:'? (Note: dates follow DD/MM/YY format, e.g., 08/10/26 = 8th October 2026).
     - transcribed_signatures: Describe what appears in the customer and authorized signature areas at the bottom.
     
-    Step 2: Evaluate the 7 rules:
+    Step 2: Evaluate the 6 rules:
     1. is_clean_no_overwriting: True if there is no heavy scribbling, crossing out, or tampering over amounts or text.
     2. has_two_signatures: True if there are marks, signatures, or written names in both bottom signature spaces (e.g. a written name like 'Fahim' on the customer line counts as a customer signature).
     3. has_item_box: True if there is a distinct table or lined grid detailing items.
     4. has_store_details: True if the vendor name, phone number, and location are visible at the top.
     5. has_bracu_client_details: True if the client section (Name or Address) contains 'BRACU', 'BRAC University', or recognized university clubs/acronyms (such as 'BUCC').
     6. is_date_valid: True if the transcribed date falls between {start_date} and {end_date} (inclusive). Remember that 08/10/26 is 8 October 2026.
-    7. is_math_correct: True if the unit prices multiplied by quantities equal the line totals, and match the grand total.
     
     Extract total_amount.
-    Set status to 'Pass' ONLY if all boolean rules are True. Otherwise, set status to 'Flag' and explain why in reasoning.
+    Set status to 'Pass' ONLY if all boolean rules are True. Otherwise, set status to 'Flag' and explain why in reasoning. Do not mention math or calculations in the reasoning.
     
     IMPORTANT: Do NOT claim the image is corrupted, binary, or unreadable just because the handwriting is extremely messy, faint, or in Bangla. If you can see that it's a piece of paper, evaluate the rules as best as you can. If a field is entirely missing or unreadable, transcribe it as "N/A" and mark the respective boolean as false.
     """
