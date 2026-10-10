@@ -87,7 +87,58 @@
 
                 const data = await response.json();
                 
-                resultJson.textContent = JSON.stringify(data, null, 2);
+                let resultText = "";
+                // Handle new nested schema (rules object)
+                if (data.rules) {
+                    const passed = data.overall_passed;
+                    const statusStr = passed ? "✅ PASS" : "❌ FLAG";
+                    const r = data.rules;
+                    
+                    resultText += `Overall Status: ${statusStr}\n\n`;
+                    resultText += `[${r.no_overwriting_or_tampering.passed ? '✅' : '❌'}] No overwriting\n`;
+                    resultText += `[${r.date_within_range.passed ? '✅' : '❌'}] Date is correct\n`;
+                    resultText += `[${r.signatures_present.passed ? '✅' : '❌'}] 2 signatures present\n`;
+                    resultText += `[${r.item_box_present.passed ? '✅' : '❌'}] Item box present\n`;
+                    resultText += `[${r.store_details_present.passed ? '✅' : '❌'}] Store details present\n`;
+                    resultText += `[${r.client_details_correct.passed ? '✅' : '❌'}] Client details correct\n`;
+                    resultText += `[${r.math_accuracy.passed ? '✅' : '❌'}] Math is correct\n`;
+
+                    if (!passed) {
+                        resultText += `\n--- Reasons for Flagging ---\n`;
+                        if (!r.no_overwriting_or_tampering.passed) resultText += `- Overwriting: ${r.no_overwriting_or_tampering.reason}\n`;
+                        if (!r.date_within_range.passed) resultText += `- Date: ${r.date_within_range.reason}\n`;
+                        if (!r.signatures_present.passed) resultText += `- Signatures: ${r.signatures_present.reason}\n`;
+                        if (!r.item_box_present.passed) resultText += `- Item box: ${r.item_box_present.reason}\n`;
+                        if (!r.store_details_present.passed) resultText += `- Store details: ${r.store_details_present.reason}\n`;
+                        if (!r.client_details_correct.passed) resultText += `- Client details: ${r.client_details_correct.reason}\n`;
+                        if (!r.math_accuracy.passed) resultText += `- Math: ${r.math_accuracy.reason}\n`;
+                    }
+                    if (data.flags_for_human_review && data.flags_for_human_review.length > 0) {
+                        resultText += `\n--- Human Review Needed ---\n`;
+                        data.flags_for_human_review.forEach(f => {
+                            resultText += `- ${f}\n`;
+                        });
+                    }
+                } else {
+                    // Handle old flat schema
+                    const statusStr = data.status === "Pass" ? "✅ PASS" : "❌ FLAG";
+                    resultText += `Overall Status: ${statusStr}\n\n`;
+                    resultText += `[${data.is_clean_no_overwriting ? '✅' : '❌'}] No overwriting\n`;
+                    resultText += `[${data.is_date_valid ? '✅' : '❌'}] Date is correct\n`;
+                    resultText += `[${data.has_two_signatures ? '✅' : '❌'}] 2 signatures present\n`;
+                    resultText += `[${data.has_item_box ? '✅' : '❌'}] Item box present\n`;
+                    resultText += `[${data.has_store_details ? '✅' : '❌'}] Store details present\n`;
+                    resultText += `[${data.has_bracu_client_details ? '✅' : '❌'}] Client details correct\n`;
+                    if ('is_math_correct' in data) {
+                        resultText += `[${data.is_math_correct ? '✅' : '❌'}] Math is correct\n`;
+                    }
+                    
+                    if (data.status !== "Pass") {
+                        resultText += `\n--- Reason for Flagging ---\n${data.reasoning}\n`;
+                    }
+                }
+                
+                resultJson.textContent = resultText;
                 resultContainer.classList.remove('hidden');
             } catch (error) {
                 resultJson.textContent = `Error: ${error.message}`;
