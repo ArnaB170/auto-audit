@@ -240,7 +240,6 @@ OUTPUT REQUIREMENTS
                 contents=[prompt, image_part],
                 config=GenerateContentConfig(
                     response_mime_type="application/json",
-                    response_schema=BillAudit,
                     temperature=0.0,
                 ),
             )
