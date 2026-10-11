@@ -81,8 +81,11 @@ class BillAudit(BaseModel):
 # ---------------------------------------------------------------------------
 
 def audit_receipt_with_gemini(
-    image_bytes: bytes, start_date: str, end_date: str, mime_type: str = "image/jpeg"
+    image_bytes: bytes, mime_type: str = "image/jpeg", start_date: str = "", end_date: str = ""
 ) -> str:
+    if not mime_type or "/" not in mime_type:
+        mime_type = "image/jpeg"
+
     prompt = f"""
 You are a strict, skeptical financial auditor for a university in Bangladesh. You examine photos of local vendor receipts ("cash memos"), often handwritten, partly in Bengali, stamped, creased, or photographed at an angle with clutter around the paper. Audit each receipt against 7 rules and return a strict JSON verdict.
 

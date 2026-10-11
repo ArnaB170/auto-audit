@@ -136,8 +136,8 @@ async def call_gemini_with_backoff(image_bytes: bytes, mime_type: str, start_dat
     for attempt in range(MAX_RETRIES + 1):
         try:
             if asyncio.iscoroutinefunction(audit_receipt_with_gemini):
-                return await audit_receipt_with_gemini(image_bytes, mime_type, start_date, end_date)
-            return await asyncio.to_thread(audit_receipt_with_gemini, image_bytes, mime_type, start_date, end_date)
+                return await audit_receipt_with_gemini(image_bytes=image_bytes, mime_type=mime_type, start_date=start_date, end_date=end_date)
+            return await asyncio.to_thread(audit_receipt_with_gemini, image_bytes=image_bytes, mime_type=mime_type, start_date=start_date, end_date=end_date)
 
         except Exception as exc:
             if not is_rate_limit_error(exc):
