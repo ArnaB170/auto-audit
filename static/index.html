@@ -97,13 +97,21 @@
                 const data = await response.json();
                 
                 let resultText = "";
-                // Handle new nested schema (rules object)
+                // Handle nested schema (rules object)
                 if (data.rules) {
                     const passed = data.overall_passed;
                     const statusStr = passed ? "✅ PASS" : "❌ FLAG";
                     const r = data.rules;
-                    
-                    resultText += `Overall Status: ${statusStr}\n\n`;
+                    const confidenceStr = data.confidence ? `  |  Confidence: ${data.confidence}` : "";
+
+                    resultText += `Overall Status: ${statusStr}${confidenceStr}\n`;
+
+                    // Summary explanation (always shown)
+                    if (data.summary_explanation) {
+                        resultText += `\n📋 Summary\n${data.summary_explanation}\n`;
+                    }
+
+                    resultText += `\n--- Checklist ---\n`;
                     resultText += `[${r.no_overwriting_or_tampering.passed ? '✅' : '❌'}] No overwriting\n`;
                     resultText += `[${r.date_within_range.passed ? '✅' : '❌'}] Date is correct\n`;
                     resultText += `[${r.signatures_present.passed ? '✅' : '❌'}] 2 signatures present\n`;
@@ -112,20 +120,24 @@
                     resultText += `[${r.client_details_correct.passed ? '✅' : '❌'}] Client details correct\n`;
                     resultText += `[${r.math_accuracy.passed ? '✅' : '❌'}] Math is correct\n`;
 
-                    if (!passed) {
-                        resultText += `\n--- Reasons for Flagging ---\n`;
-                        if (!r.no_overwriting_or_tampering.passed) resultText += `- Overwriting: ${r.no_overwriting_or_tampering.reason}\n`;
-                        if (!r.date_within_range.passed) resultText += `- Date: ${r.date_within_range.reason}\n`;
-                        if (!r.signatures_present.passed) resultText += `- Signatures: ${r.signatures_present.reason}\n`;
-                        if (!r.item_box_present.passed) resultText += `- Item box: ${r.item_box_present.reason}\n`;
-                        if (!r.store_details_present.passed) resultText += `- Store details: ${r.store_details_present.reason}\n`;
-                        if (!r.client_details_correct.passed) resultText += `- Client details: ${r.client_details_correct.reason}\n`;
-                        if (!r.math_accuracy.passed) resultText += `- Math: ${r.math_accuracy.reason}\n`;
+                    // Blank client fields warning
+                    if (data.blank_client_fields) {
+                        resultText += `\n⚠️  Warning: Client name and address fields are both BLANK on this receipt.\n`;
                     }
+
+                    // Issues list (only if flagged)
+                    if (!passed && data.issues && data.issues.length > 0) {
+                        resultText += `\n--- What Needs to Be Fixed ---\n`;
+                        data.issues.forEach(issue => {
+                            resultText += `❌ ${issue.problem}\n   → ${issue.how_to_fix}\n`;
+                        });
+                    }
+
+                    // Human review flags
                     if (data.flags_for_human_review && data.flags_for_human_review.length > 0) {
-                        resultText += `\n--- Human Review Needed ---\n`;
+                        resultText += `\n--- Needs Human Review ---\n`;
                         data.flags_for_human_review.forEach(f => {
-                            resultText += `- ${f}\n`;
+                            resultText += `🔍 ${f}\n`;
                         });
                     }
                 } else {
