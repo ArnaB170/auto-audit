@@ -3,173 +3,640 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AutoAudit</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <title>BUCC Finance — AutoAudit</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --bg-primary: #0a0e1a;
+            --bg-card: rgba(15, 20, 40, 0.85);
+            --bg-card-hover: rgba(20, 28, 58, 0.9);
+            --accent: #6c5ce7;
+            --accent-glow: rgba(108, 92, 231, 0.35);
+            --accent-light: #a29bfe;
+            --green: #00b894;
+            --green-glow: rgba(0, 184, 148, 0.25);
+            --red: #ff6b6b;
+            --red-glow: rgba(255, 107, 107, 0.25);
+            --yellow: #feca57;
+            --text-primary: #e8e8f0;
+            --text-secondary: #8b8da3;
+            --text-muted: #5a5c72;
+            --border: rgba(108, 92, 231, 0.15);
+            --border-active: rgba(108, 92, 231, 0.5);
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* Animated background */
+        .bg-grid {
+            position: fixed; inset: 0; z-index: 0;
+            background-image:
+                radial-gradient(ellipse 80% 60% at 50% -20%, rgba(108, 92, 231, 0.12), transparent),
+                radial-gradient(ellipse 60% 50% at 80% 100%, rgba(0, 184, 148, 0.08), transparent);
+        }
+        .bg-grid::before {
+            content: ''; position: absolute; inset: 0;
+            background-image:
+                linear-gradient(rgba(108, 92, 231, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(108, 92, 231, 0.03) 1px, transparent 1px);
+            background-size: 60px 60px;
+        }
+
+        /* Floating orbs */
+        .orb {
+            position: fixed; border-radius: 50%; filter: blur(80px); pointer-events: none; z-index: 0;
+            animation: float 20s ease-in-out infinite;
+        }
+        .orb-1 { width: 300px; height: 300px; background: rgba(108,92,231,0.08); top: 10%; left: -5%; animation-delay: 0s; }
+        .orb-2 { width: 250px; height: 250px; background: rgba(0,184,148,0.06); bottom: 10%; right: -5%; animation-delay: -7s; }
+        .orb-3 { width: 200px; height: 200px; background: rgba(162,155,254,0.05); top: 50%; left: 60%; animation-delay: -14s; }
+
+        @keyframes float {
+            0%, 100% { transform: translate(0, 0) scale(1); }
+            33% { transform: translate(30px, -20px) scale(1.05); }
+            66% { transform: translate(-20px, 15px) scale(0.95); }
+        }
+
+        /* Layout */
+        .app-container {
+            position: relative; z-index: 1;
+            max-width: 480px; margin: 0 auto;
+            padding: 20px 16px 40px;
+            min-height: 100vh;
+            display: flex; flex-direction: column;
+        }
+
+        /* Header */
+        .header {
+            text-align: center; padding: 32px 0 8px;
+        }
+        .logo-badge {
+            display: inline-flex; align-items: center; gap: 10px;
+            background: linear-gradient(135deg, rgba(108,92,231,0.15), rgba(0,184,148,0.1));
+            border: 1px solid var(--border);
+            border-radius: 16px; padding: 8px 20px;
+            margin-bottom: 16px;
+            backdrop-filter: blur(10px);
+        }
+        .logo-icon {
+            width: 28px; height: 28px;
+            background: linear-gradient(135deg, var(--accent), var(--green));
+            border-radius: 8px;
+            display: flex; align-items: center; justify-content: center;
+            font-weight: 800; font-size: 13px; color: white;
+        }
+        .logo-text {
+            font-weight: 700; font-size: 14px; letter-spacing: 2px;
+            background: linear-gradient(135deg, var(--accent-light), var(--green));
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+        }
+        .app-title {
+            font-size: 32px; font-weight: 800; letter-spacing: -1px;
+            line-height: 1.1; margin-bottom: 8px;
+        }
+        .app-title .auto { color: var(--text-primary); }
+        .app-title .audit {
+            background: linear-gradient(135deg, var(--accent), var(--accent-light));
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+        }
+        .app-subtitle {
+            font-size: 14px; color: var(--text-secondary); font-weight: 400;
+            margin-bottom: 32px;
+        }
+
+        /* Card */
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 28px 24px;
+            backdrop-filter: blur(20px);
+            transition: all 0.3s ease;
+            margin-bottom: 16px;
+        }
+        .card:hover { border-color: var(--border-active); }
+
+        .section-label {
+            font-size: 11px; font-weight: 600; letter-spacing: 2px;
+            color: var(--text-muted); text-transform: uppercase;
+            margin-bottom: 14px;
+            display: flex; align-items: center; gap: 8px;
+        }
+        .section-label::after {
+            content: ''; flex: 1; height: 1px;
+            background: linear-gradient(90deg, var(--border), transparent);
+        }
+
+        /* Date inputs */
+        .date-grid {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+        }
+        .date-field { position: relative; }
+        .date-field label {
+            display: block; font-size: 12px; font-weight: 500;
+            color: var(--text-secondary); margin-bottom: 6px;
+        }
+        .date-field input[type="date"] {
+            width: 100%; padding: 12px 14px;
+            background: rgba(108, 92, 231, 0.06);
+            border: 1px solid var(--border); border-radius: 12px;
+            color: var(--text-primary); font-family: 'Inter', sans-serif;
+            font-size: 14px; outline: none;
+            transition: all 0.3s ease;
+            -webkit-appearance: none; appearance: none;
+        }
+        .date-field input[type="date"]:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px var(--accent-glow);
+            background: rgba(108, 92, 231, 0.1);
+        }
+        .date-field input[type="date"]::-webkit-calendar-picker-indicator {
+            filter: invert(0.6) sepia(1) hue-rotate(210deg);
+            cursor: pointer;
+        }
+
+        /* Upload zone */
+        .upload-zone {
+            position: relative; cursor: pointer;
+            border: 2px dashed var(--border);
+            border-radius: 16px; padding: 36px 20px;
+            text-align: center;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            background: rgba(108, 92, 231, 0.03);
+            overflow: hidden;
+        }
+        .upload-zone::before {
+            content: ''; position: absolute; inset: 0;
+            background: radial-gradient(circle at 50% 50%, var(--accent-glow), transparent 70%);
+            opacity: 0; transition: opacity 0.4s ease;
+        }
+        .upload-zone:hover {
+            border-color: var(--accent);
+            background: rgba(108, 92, 231, 0.06);
+            transform: translateY(-2px);
+        }
+        .upload-zone:hover::before { opacity: 1; }
+
+        .upload-zone.drag-over {
+            border-color: var(--green);
+            background: rgba(0, 184, 148, 0.08);
+            transform: scale(1.02);
+        }
+        .upload-zone.has-file {
+            border-color: var(--green);
+            border-style: solid;
+            background: rgba(0, 184, 148, 0.05);
+        }
+
+        .upload-icon-wrap {
+            position: relative; z-index: 1;
+            width: 56px; height: 56px; margin: 0 auto 16px;
+            background: linear-gradient(135deg, rgba(108,92,231,0.15), rgba(0,184,148,0.1));
+            border-radius: 16px;
+            display: flex; align-items: center; justify-content: center;
+            transition: transform 0.3s ease;
+        }
+        .upload-zone:hover .upload-icon-wrap { transform: translateY(-4px) scale(1.05); }
+
+        .upload-icon-wrap svg { width: 24px; height: 24px; stroke: var(--accent-light); }
+
+        .upload-title {
+            position: relative; z-index: 1;
+            font-size: 15px; font-weight: 600; color: var(--text-primary);
+            margin-bottom: 4px;
+        }
+        .upload-hint {
+            position: relative; z-index: 1;
+            font-size: 12px; color: var(--text-muted);
+        }
+        .file-name {
+            position: relative; z-index: 1;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12px; color: var(--green);
+            margin-top: 10px;
+            display: flex; align-items: center; justify-content: center; gap: 6px;
+        }
+
+        .upload-zone input { display: none; }
+
+        /* Audit button */
+        .audit-btn {
+            width: 100%; padding: 16px;
+            background: linear-gradient(135deg, var(--accent), #5a4bd1);
+            border: none; border-radius: 14px;
+            color: white; font-family: 'Inter', sans-serif;
+            font-size: 15px; font-weight: 700; letter-spacing: 0.5px;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative; overflow: hidden;
+            margin-top: 8px;
+        }
+        .audit-btn::before {
+            content: ''; position: absolute; inset: 0;
+            background: linear-gradient(135deg, transparent, rgba(255,255,255,0.1));
+            opacity: 0; transition: opacity 0.3s ease;
+        }
+        .audit-btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 30px var(--accent-glow);
+        }
+        .audit-btn:hover::before { opacity: 1; }
+        .audit-btn:active:not(:disabled) { transform: translateY(0); }
+        .audit-btn:disabled {
+            opacity: 0.4; cursor: not-allowed;
+        }
+
+        /* Loading state */
+        .audit-btn.loading {
+            pointer-events: none;
+            background: linear-gradient(135deg, var(--accent), #5a4bd1);
+        }
+        .spinner {
+            display: inline-block; width: 18px; height: 18px;
+            border: 2.5px solid rgba(255,255,255,0.3);
+            border-top-color: white; border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            vertical-align: middle; margin-right: 8px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Results */
+        .result-card {
+            animation: slideUp 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .status-banner {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 16px 20px; border-radius: 14px; margin-bottom: 20px;
+        }
+        .status-banner.pass {
+            background: linear-gradient(135deg, rgba(0,184,148,0.12), rgba(0,184,148,0.04));
+            border: 1px solid rgba(0,184,148,0.25);
+        }
+        .status-banner.fail {
+            background: linear-gradient(135deg, rgba(255,107,107,0.12), rgba(255,107,107,0.04));
+            border: 1px solid rgba(255,107,107,0.25);
+        }
+        .status-label { font-size: 18px; font-weight: 800; display: flex; align-items: center; gap: 10px; }
+        .status-banner.pass .status-label { color: var(--green); }
+        .status-banner.fail .status-label { color: var(--red); }
+        .confidence-tag {
+            font-size: 11px; font-weight: 600; letter-spacing: 1px;
+            padding: 4px 12px; border-radius: 20px; text-transform: uppercase;
+        }
+        .status-banner.pass .confidence-tag { background: rgba(0,184,148,0.12); color: var(--green); }
+        .status-banner.fail .confidence-tag { background: rgba(255,107,107,0.12); color: var(--red); }
+
+        .summary-text {
+            font-size: 13px; color: var(--text-secondary); line-height: 1.7;
+            padding: 14px 16px; border-radius: 12px;
+            background: rgba(108,92,231,0.04);
+            border-left: 3px solid var(--accent);
+            margin-bottom: 20px;
+        }
+
+        /* Checklist */
+        .checklist { display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px; }
+        .check-item {
+            display: flex; align-items: center; gap: 12px;
+            padding: 10px 14px; border-radius: 10px;
+            background: rgba(255,255,255,0.02);
+            border: 1px solid transparent;
+            transition: all 0.2s ease;
+        }
+        .check-item:hover { background: rgba(255,255,255,0.04); }
+        .check-icon {
+            width: 28px; height: 28px; border-radius: 8px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 14px; flex-shrink: 0;
+        }
+        .check-item.pass .check-icon { background: var(--green-glow); }
+        .check-item.fail .check-icon { background: var(--red-glow); }
+        .check-label { font-size: 13px; font-weight: 500; }
+
+        /* Warning */
+        .warning-box {
+            display: flex; align-items: flex-start; gap: 10px;
+            padding: 12px 16px; border-radius: 10px;
+            background: rgba(254, 202, 87, 0.08);
+            border: 1px solid rgba(254, 202, 87, 0.2);
+            margin-bottom: 20px;
+            font-size: 13px; color: var(--yellow);
+        }
+
+        /* Issues */
+        .issue-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; }
+        .issue-item {
+            padding: 14px 16px; border-radius: 12px;
+            background: rgba(255,107,107,0.04);
+            border: 1px solid rgba(255,107,107,0.1);
+        }
+        .issue-problem { font-size: 13px; font-weight: 600; color: var(--red); margin-bottom: 6px; }
+        .issue-fix { font-size: 12px; color: var(--text-secondary); padding-left: 14px; border-left: 2px solid rgba(255,107,107,0.2); }
+
+        /* Human review */
+        .review-item {
+            display: flex; align-items: flex-start; gap: 8px;
+            padding: 10px 14px; border-radius: 10px;
+            background: rgba(108,92,231,0.06);
+            border: 1px solid rgba(108,92,231,0.12);
+            font-size: 12px; color: var(--accent-light);
+            margin-bottom: 8px;
+        }
+
+        /* Error state */
+        .error-box {
+            padding: 16px 20px; border-radius: 14px;
+            background: rgba(255,107,107,0.08);
+            border: 1px solid rgba(255,107,107,0.2);
+            color: var(--red); font-size: 14px; font-weight: 500;
+            display: flex; align-items: flex-start; gap: 10px;
+        }
+
+        /* Footer */
+        .footer {
+            text-align: center; padding: 24px 0 8px;
+            font-size: 11px; color: var(--text-muted);
+        }
+        .footer a { color: var(--accent-light); text-decoration: none; }
+
+        /* Responsive */
+        @media (max-width: 380px) {
+            .app-container { padding: 12px 12px 32px; }
+            .card { padding: 20px 16px; }
+            .app-title { font-size: 28px; }
+        }
+    </style>
 </head>
-<body class="bg-gray-100 min-h-screen flex flex-col items-center p-4">
+<body>
 
-    <div class="max-w-md w-full bg-white rounded-xl shadow-md p-6 mt-10">
-        <h1 class="text-2xl font-bold text-center text-gray-800 mb-6">AutoAudit</h1>
-        
-        <p class="text-gray-600 mb-4 text-center">Upload a physical receipt to audit.</p>
+    <div class="bg-grid"></div>
+    <div class="orb orb-1"></div>
+    <div class="orb orb-2"></div>
+    <div class="orb orb-3"></div>
 
-        <div class="flex flex-col gap-4 mb-4 w-full">
-            <div>
-                <label for="start-date" class="block text-sm font-medium text-gray-700">Start Date</label>
-                <input type="date" id="start-date" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2 border">
+    <div class="app-container">
+        <!-- Header -->
+        <div class="header">
+            <div class="logo-badge">
+                <div class="logo-icon">B</div>
+                <span class="logo-text">BUCC FINANCE</span>
             </div>
-            <div>
-                <label for="end-date" class="block text-sm font-medium text-gray-700">End Date</label>
-                <input type="date" id="end-date" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2 border">
-            </div>
+            <h1 class="app-title">
+                <span class="auto">Auto</span><span class="audit">Audit</span>
+            </h1>
+            <p class="app-subtitle">AI-powered receipt verification system</p>
         </div>
 
-        <div class="flex flex-col items-center justify-center w-full">
-            <label for="receipt-upload" class="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100">
-                <div class="flex flex-col items-center justify-center pt-5 pb-6">
-                    <svg class="w-8 h-8 mb-4 text-gray-500" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 16">
-                        <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 13h3a3 3 0 0 0 0-6h-.025A5.56 5.56 0 0 0 16 6.5 5.5 5.5 0 0 0 5.207 5.021C5.137 5.017 5.071 5 5 5a4 4 0 0 0 0 8h2.167M10 15V6m0 0L8 8m2-2 2 2"/>
-                    </svg>
-                    <p class="mb-2 text-sm text-gray-500 font-semibold">Click to Upload Bill</p>
-                    <p class="text-xs text-gray-500">Image files only</p>
+        <!-- Audit Window Card -->
+        <div class="card">
+            <div class="section-label">Audit Window</div>
+            <div class="date-grid">
+                <div class="date-field">
+                    <label for="start-date">Start Date</label>
+                    <input type="date" id="start-date">
                 </div>
-                <input id="receipt-upload" type="file" class="hidden" accept="image/jpeg,image/png,image/webp,image/heic,.jpg,.jpeg,.png,.webp,.heic" />
+                <div class="date-field">
+                    <label for="end-date">End Date</label>
+                    <input type="date" id="end-date">
+                </div>
+            </div>
+        </div>
+
+        <!-- Upload Card -->
+        <div class="card">
+            <div class="section-label">Receipt Upload</div>
+            <label class="upload-zone" id="upload-zone" for="receipt-upload">
+                <div class="upload-icon-wrap">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/>
+                    </svg>
+                </div>
+                <div class="upload-title">Drop receipt or tap to upload</div>
+                <div class="upload-hint">JPG, PNG, WEBP, HEIC</div>
+                <div class="file-name" id="file-name" style="display: none;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                    <span id="file-name-text"></span>
+                </div>
+                <input id="receipt-upload" type="file" accept="image/jpeg,image/png,image/webp,image/heic,.jpg,.jpeg,.png,.webp,.heic">
             </label>
+
+            <button class="audit-btn" id="audit-btn" disabled>
+                Run Audit
+            </button>
         </div>
 
-        <div id="loading" class="hidden mt-6 text-center text-blue-600 font-semibold">
-            Uploading and Auditing...
-        </div>
+        <!-- Result Area -->
+        <div id="result-container" style="display: none;"></div>
 
-        <div id="result-container" class="mt-6 hidden">
-            <h2 class="text-lg font-semibold text-gray-700 mb-2">Audit Result:</h2>
-            <pre id="result-json" class="bg-gray-100 p-4 rounded-lg text-sm text-gray-800 overflow-x-auto whitespace-pre-wrap"></pre>
+        <!-- Footer -->
+        <div class="footer">
+            Built for <a href="#">BRAC University Computer Club</a>
         </div>
     </div>
 
     <script>
         const fileInput = document.getElementById('receipt-upload');
-        const loadingIndicator = document.getElementById('loading');
+        const uploadZone = document.getElementById('upload-zone');
+        const fileNameEl = document.getElementById('file-name');
+        const fileNameText = document.getElementById('file-name-text');
+        const auditBtn = document.getElementById('audit-btn');
         const resultContainer = document.getElementById('result-container');
-        const resultJson = document.getElementById('result-json');
 
-        fileInput.addEventListener('change', async (event) => {
-            const file = event.target.files[0];
-            if (!file) return;
+        let selectedFile = null;
+
+        // Drag and drop
+        uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('drag-over'); });
+        uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('drag-over'));
+        uploadZone.addEventListener('drop', e => {
+            e.preventDefault(); uploadZone.classList.remove('drag-over');
+            if (e.dataTransfer.files.length) {
+                fileInput.files = e.dataTransfer.files;
+                handleFile(e.dataTransfer.files[0]);
+            }
+        });
+
+        fileInput.addEventListener('change', e => {
+            if (e.target.files[0]) handleFile(e.target.files[0]);
+        });
+
+        function handleFile(file) {
+            selectedFile = file;
+            uploadZone.classList.add('has-file');
+            fileNameEl.style.display = 'flex';
+            fileNameText.textContent = file.name.length > 28 ? file.name.substring(0, 25) + '...' : file.name;
+            auditBtn.disabled = false;
+        }
+
+        auditBtn.addEventListener('click', async () => {
+            if (!selectedFile) return;
 
             const startDate = document.getElementById('start-date').value;
             const endDate = document.getElementById('end-date').value;
 
             if (!startDate || !endDate) {
-                alert("Please select both start and end dates.");
+                showError('Please select both start and end dates.');
                 return;
             }
 
             const formData = new FormData();
-            formData.append('file', file);
+            formData.append('file', selectedFile);
             formData.append('start_date', startDate);
             formData.append('end_date', endDate);
 
-            // Show loading, hide previous result
-            loadingIndicator.classList.remove('hidden');
-            resultContainer.classList.add('hidden');
-            resultJson.textContent = '';
+            // Loading state
+            auditBtn.classList.add('loading');
+            auditBtn.innerHTML = '<span class="spinner"></span>Analyzing Receipt...';
+            auditBtn.disabled = true;
+            resultContainer.style.display = 'none';
 
             try {
-                const response = await fetch('/api/audit', {
-                    method: 'POST',
-                    body: formData
-                });
+                const response = await fetch('/api/audit', { method: 'POST', body: formData });
 
                 if (!response.ok) {
                     let errorDetail = `HTTP error! status: ${response.status}`;
                     try {
                         const errorData = await response.json();
-                        if (errorData.detail) {
-                            errorDetail = errorData.detail;
-                        }
-                    } catch (e) {
-                        // Ignore JSON parsing errors for non-JSON responses
-                    }
+                        if (errorData.detail) errorDetail = errorData.detail;
+                    } catch (e) {}
                     throw new Error(errorDetail);
                 }
 
                 const data = await response.json();
-                
-                let resultText = "";
-                // Handle nested schema (rules object)
-                if (data.rules) {
-                    const passed = data.overall_passed;
-                    const statusStr = passed ? "✅ PASS" : "❌ FLAG";
-                    const r = data.rules;
-                    const confidenceStr = data.confidence ? `  |  Confidence: ${data.confidence}` : "";
-
-                    resultText += `Overall Status: ${statusStr}${confidenceStr}\n`;
-
-                    // Summary explanation (always shown)
-                    if (data.summary_explanation) {
-                        resultText += `\n📋 Summary\n${data.summary_explanation}\n`;
-                    }
-
-                    resultText += `\n--- Checklist ---\n`;
-                    resultText += `[${r.no_overwriting_or_tampering.passed ? '✅' : '❌'}] No overwriting\n`;
-                    resultText += `[${r.date_within_range.passed ? '✅' : '❌'}] Date is correct\n`;
-                    resultText += `[${r.signatures_present.passed ? '✅' : '❌'}] 2 signatures present\n`;
-                    resultText += `[${r.item_box_present.passed ? '✅' : '❌'}] Item box present\n`;
-                    resultText += `[${r.store_details_present.passed ? '✅' : '❌'}] Store details present\n`;
-                    resultText += `[${r.client_details_correct.passed ? '✅' : '❌'}] Client details correct\n`;
-                    resultText += `[${r.math_accuracy.passed ? '✅' : '❌'}] Math is correct\n`;
-
-                    // Blank client fields warning
-                    if (data.blank_client_fields) {
-                        resultText += `\n⚠️  Warning: Client name and address fields are both BLANK on this receipt.\n`;
-                    }
-
-                    // Issues list (only if flagged)
-                    if (!passed && data.issues && data.issues.length > 0) {
-                        resultText += `\n--- What Needs to Be Fixed ---\n`;
-                        data.issues.forEach(issue => {
-                            resultText += `❌ ${issue.problem}\n   → ${issue.how_to_fix}\n`;
-                        });
-                    }
-
-                    // Human review flags
-                    if (data.flags_for_human_review && data.flags_for_human_review.length > 0) {
-                        resultText += `\n--- Needs Human Review ---\n`;
-                        data.flags_for_human_review.forEach(f => {
-                            resultText += `🔍 ${f}\n`;
-                        });
-                    }
-                } else {
-                    // Handle old flat schema
-                    const statusStr = data.status === "Pass" ? "✅ PASS" : "❌ FLAG";
-                    resultText += `Overall Status: ${statusStr}\n\n`;
-                    resultText += `[${data.is_clean_no_overwriting ? '✅' : '❌'}] No overwriting\n`;
-                    resultText += `[${data.is_date_valid ? '✅' : '❌'}] Date is correct\n`;
-                    resultText += `[${data.has_two_signatures ? '✅' : '❌'}] 2 signatures present\n`;
-                    resultText += `[${data.has_item_box ? '✅' : '❌'}] Item box present\n`;
-                    resultText += `[${data.has_store_details ? '✅' : '❌'}] Store details present\n`;
-                    resultText += `[${data.has_bracu_client_details ? '✅' : '❌'}] Client details correct\n`;
-                    if ('is_math_correct' in data) {
-                        resultText += `[${data.is_math_correct ? '✅' : '❌'}] Math is correct\n`;
-                    }
-                    
-                    if (data.status !== "Pass") {
-                        resultText += `\n--- Reason for Flagging ---\n${data.reasoning}\n`;
-                    }
-                }
-                
-                resultJson.textContent = resultText;
-                resultContainer.classList.remove('hidden');
+                renderResult(data);
             } catch (error) {
-                resultJson.textContent = `Error: ${error.message}`;
-                resultContainer.classList.remove('hidden');
+                showError(error.message);
             } finally {
-                loadingIndicator.classList.add('hidden');
-                // Reset file input so the same file can be uploaded again if needed
+                auditBtn.classList.remove('loading');
+                auditBtn.innerHTML = 'Run Audit';
+                auditBtn.disabled = false;
                 fileInput.value = '';
             }
         });
+
+        function renderResult(data) {
+            let html = '<div class="card result-card">';
+
+            if (data.rules) {
+                const passed = data.overall_passed;
+                const r = data.rules;
+
+                // Status banner
+                html += `<div class="status-banner ${passed ? 'pass' : 'fail'}">
+                    <div class="status-label">${passed ? '✅' : '🚩'} ${passed ? 'PASSED' : 'FLAGGED'}</div>
+                    ${data.confidence ? `<span class="confidence-tag">${data.confidence}</span>` : ''}
+                </div>`;
+
+                // Summary
+                if (data.summary_explanation) {
+                    html += `<div class="summary-text">${escapeHtml(data.summary_explanation)}</div>`;
+                }
+
+                // Checklist
+                const checks = [
+                    [r.no_overwriting_or_tampering, 'No Overwriting or Tampering'],
+                    [r.date_within_range, 'Date Within Range'],
+                    [r.signatures_present, 'Two Signatures Present'],
+                    [r.item_box_present, 'Item Table Present'],
+                    [r.store_details_present, 'Store Details Visible'],
+                    [r.client_details_correct, 'BRACU Client Details'],
+                    [r.math_accuracy, 'Math Accuracy Verified'],
+                ];
+
+                html += '<div class="section-label">Audit Checklist</div><div class="checklist">';
+                checks.forEach(([rule, label]) => {
+                    const p = rule.passed;
+                    html += `<div class="check-item ${p ? 'pass' : 'fail'}">
+                        <div class="check-icon">${p ? '✅' : '❌'}</div>
+                        <span class="check-label">${label}</span>
+                    </div>`;
+                });
+                html += '</div>';
+
+                // Warning
+                if (data.blank_client_fields) {
+                    html += `<div class="warning-box">⚠️ Client name and address fields are both blank on this receipt.</div>`;
+                }
+
+                // Issues
+                if (!passed && data.issues && data.issues.length > 0) {
+                    html += '<div class="section-label">Issues Found</div><div class="issue-list">';
+                    data.issues.forEach(issue => {
+                        html += `<div class="issue-item">
+                            <div class="issue-problem">❌ ${escapeHtml(issue.problem)}</div>
+                            <div class="issue-fix">→ ${escapeHtml(issue.how_to_fix)}</div>
+                        </div>`;
+                    });
+                    html += '</div>';
+                }
+
+                // Human review
+                if (data.flags_for_human_review && data.flags_for_human_review.length > 0) {
+                    html += '<div class="section-label">Needs Human Review</div>';
+                    data.flags_for_human_review.forEach(f => {
+                        html += `<div class="review-item">🔍 ${escapeHtml(f)}</div>`;
+                    });
+                }
+
+            } else {
+                // Old flat schema fallback
+                const passed = data.status === "Pass";
+                html += `<div class="status-banner ${passed ? 'pass' : 'fail'}">
+                    <div class="status-label">${passed ? '✅' : '🚩'} ${passed ? 'PASSED' : 'FLAGGED'}</div>
+                </div>`;
+                html += '<div class="checklist">';
+                const oldChecks = [
+                    [data.is_clean_no_overwriting, 'No Overwriting'],
+                    [data.is_date_valid, 'Date Correct'],
+                    [data.has_two_signatures, '2 Signatures'],
+                    [data.has_item_box, 'Item Box'],
+                    [data.has_store_details, 'Store Details'],
+                    [data.has_bracu_client_details, 'Client Details'],
+                ];
+                if ('is_math_correct' in data) oldChecks.push([data.is_math_correct, 'Math Correct']);
+                oldChecks.forEach(([p, l]) => {
+                    html += `<div class="check-item ${p ? 'pass' : 'fail'}">
+                        <div class="check-icon">${p ? '✅' : '❌'}</div>
+                        <span class="check-label">${l}</span>
+                    </div>`;
+                });
+                html += '</div>';
+                if (!passed && data.reasoning) {
+                    html += `<div class="summary-text">${escapeHtml(data.reasoning)}</div>`;
+                }
+            }
+
+            html += '</div>';
+            resultContainer.innerHTML = html;
+            resultContainer.style.display = 'block';
+            resultContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
+        function showError(msg) {
+            resultContainer.innerHTML = `<div class="card result-card">
+                <div class="error-box">⚠️ ${escapeHtml(msg)}</div>
+            </div>`;
+            resultContainer.style.display = 'block';
+        }
+
+        function escapeHtml(text) {
+            const d = document.createElement('div');
+            d.textContent = text;
+            return d.innerHTML;
+        }
     </script>
 </body>
 </html>
