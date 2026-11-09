@@ -226,7 +226,7 @@ OUTPUT REQUIREMENTS
 
     api_keys = [
         os.environ.get(f"GEMINI_API_KEY_{i}")
-        for i in range(1, 5)
+        for i in range(1, 11)
         if os.environ.get(f"GEMINI_API_KEY_{i}")
     ]
     if not api_keys:
