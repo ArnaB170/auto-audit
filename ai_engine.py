@@ -13,34 +13,34 @@ logger = logging.getLogger("receipt-auditor")
 # ---------------------------------------------------------------------------
 
 class StoreHeader(BaseModel):
-    name: str
-    phone: str
-    location: str
+    name: str = ""
+    phone: str = ""
+    location: str = ""
 
 
 class ItemRow(BaseModel):
-    row: int
-    description: str
-    qty_raw: str
-    rate_raw: str
-    line_total_raw: str
-    line_total: float
+    row: Optional[int] = None
+    description: str = ""
+    qty_raw: Optional[str] = ""
+    rate_raw: Optional[str] = ""
+    line_total_raw: Optional[str] = ""
+    line_total: Optional[float] = 0.0
 
 
 class Scratchpad(BaseModel):
-    store_header: StoreHeader
-    date_raw: str
-    date_parsed: str
-    client_name_line: str
-    client_address_line: str
-    items: list[ItemRow]
-    empty_or_struck_rows: str
-    grand_total_raw: str
-    grand_total: float
-    other_charges: str
-    designated_signature_areas: str
-    signatures_found: list[str]
-    anomalies_observed: str
+    store_header: Optional[StoreHeader] = None
+    date_raw: str = ""
+    date_parsed: str = ""
+    client_name_line: str = ""
+    client_address_line: str = ""
+    items: Optional[list[ItemRow]] = []
+    empty_or_struck_rows: Optional[str] = ""
+    grand_total_raw: Optional[str] = ""
+    grand_total: Optional[float] = 0.0
+    other_charges: Optional[str] = ""
+    designated_signature_areas: Optional[str] = ""
+    signatures_found: Optional[list[str]] = []
+    anomalies_observed: Optional[str] = ""
 
 
 class RuleResult(BaseModel):
@@ -65,15 +65,15 @@ class Issue(BaseModel):
 
 
 class BillAudit(BaseModel):
-    scratchpad: Scratchpad
-    math_check: str
+    scratchpad: Optional[Scratchpad] = None
+    math_check: Optional[str] = ""
     rules: Rules
     overall_passed: bool
-    issues: list[Issue]
-    summary_explanation: str
-    blank_client_fields: bool
-    confidence: str
-    flags_for_human_review: list[str]
+    issues: Optional[list[Issue]] = []
+    summary_explanation: str = ""
+    blank_client_fields: Optional[bool] = False
+    confidence: Optional[str] = "medium"
+    flags_for_human_review: Optional[list[str]] = []
 
 
 # ---------------------------------------------------------------------------

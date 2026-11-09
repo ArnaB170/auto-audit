@@ -177,7 +177,7 @@ def parse_gemini_json(raw: str) -> AuditResult:
         return AuditResult.model_validate(data)
     except (json.JSONDecodeError, ValidationError, TypeError) as exc:
         logger.error("Invalid JSON from Gemini: %s | raw=%r", exc, raw[:500])
-        raise HTTPException(status_code=502, detail="The AI service returned an invalid response.")
+        raise HTTPException(status_code=502, detail=f"The AI service returned an invalid response: {str(exc)[:300]}")
 
 
 def save_audit(db: firestore.firestore.Client, result: AuditResult, start_date: str, end_date: str) -> str:
