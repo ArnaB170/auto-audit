@@ -50,7 +50,9 @@ FIRESTORE_COLLECTION = "audited_bills"
 # Daily upload limit (shared by everyone using the site).
 QUOTA_COLLECTION = "app_state"
 QUOTA_DOC_ID = "daily_upload_quota"
-DAILY_UPLOAD_LIMIT = int(os.getenv("DAILY_UPLOAD_LIMIT", "20"))
+_detected_keys = len([os.getenv(f"GEMINI_API_KEY_{i}") for i in range(1, 11) if os.getenv(f"GEMINI_API_KEY_{i}")])
+_default_limit = max(40, _detected_keys * 20)
+DAILY_UPLOAD_LIMIT = int(os.getenv("DAILY_UPLOAD_LIMIT", str(_default_limit)))
 QUOTA_TIMEZONE = os.getenv("QUOTA_TIMEZONE", "America/Los_Angeles")
 
 MAX_RETRIES = 3
