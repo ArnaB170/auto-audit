@@ -7,6 +7,10 @@ Environment variables:
                            Cloud Run, GCE, etc.).
     CORS_ORIGINS           Comma-separated list of allowed origins. Defaults to "*".
     MAX_UPLOAD_MB          Max upload size in megabytes. Defaults to 10.
+    DAILY_UPLOAD_LIMIT     Max receipts that can be audited per day (shared by all
+                           users of the site). Defaults to 20.
+    QUOTA_TIMEZONE         Time zone whose midnight resets the daily limit
+                           (IANA name). Defaults to America/Los_Angeles.
 
 Run:
     uvicorn main:app --host 0.0.0.0 --port 8000
@@ -17,15 +21,17 @@ import json
 import logging
 import os
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Optional
+from zoneinfo import ZoneInfo
 
 import firebase_admin
 from fastapi import FastAPI, File, HTTPException, UploadFile, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from firebase_admin import credentials, firestore
+from google.cloud.firestore_v1 import transactional
 from pydantic import BaseModel, ValidationError
 
 from ai_engine import audit_receipt_with_gemini
@@ -40,6 +46,12 @@ BASE_DIR = Path(__file__).resolve().parent
 STATIC_DIR = BASE_DIR / "static"  # place index.html inside ./static/
 
 FIRESTORE_COLLECTION = "audited_bills"
+
+# Daily upload limit (shared by everyone using the site).
+QUOTA_COLLECTION = "app_state"
+QUOTA_DOC_ID = "daily_upload_quota"
+DAILY_UPLOAD_LIMIT = int(os.getenv("DAILY_UPLOAD_LIMIT", "20"))
+QUOTA_TIMEZONE = os.getenv("QUOTA_TIMEZONE", "America/Los_Angeles")
 
 MAX_RETRIES = 3
 INITIAL_BACKOFF_SECONDS = 2.0
@@ -59,6 +71,7 @@ from ai_engine import BillAudit as AuditResult
 class AuditResponse(AuditResult):
     id: str
     timestamp: str
+    quota: Optional[dict] = None
 
 
 # --------------------------------------------------------------------------- #
@@ -192,11 +205,81 @@ def save_audit(db: firestore.firestore.Client, result: AuditResult, start_date: 
 
 
 # --------------------------------------------------------------------------- #
+# Daily upload quota
+# --------------------------------------------------------------------------- #
+def quota_window() -> tuple[str, datetime]:
+    """Return (today's key, UTC datetime of the next reset) in QUOTA_TIMEZONE."""
+    tz = ZoneInfo(QUOTA_TIMEZONE)
+    now = datetime.now(tz)
+    next_reset = (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+    return now.strftime("%Y-%m-%d"), next_reset.astimezone(timezone.utc)
+
+
+def quota_payload(used: int, resets_at: datetime) -> dict:
+    used = max(0, used)
+    return {
+        "limit": DAILY_UPLOAD_LIMIT,
+        "used": min(used, DAILY_UPLOAD_LIMIT),
+        "remaining": max(0, DAILY_UPLOAD_LIMIT - used),
+        "resets_at": resets_at.isoformat(),
+    }
+
+
+def _used_today(snapshot, day_key: str) -> int:
+    if not snapshot.exists:
+        return 0
+    data = snapshot.to_dict() or {}
+    return int(data.get("count", 0)) if data.get("day") == day_key else 0
+
+
+def read_quota(db: firestore.firestore.Client) -> dict:
+    """Synchronous read of the current quota (run via asyncio.to_thread)."""
+    day_key, resets_at = quota_window()
+    snap = db.collection(QUOTA_COLLECTION).document(QUOTA_DOC_ID).get()
+    return quota_payload(_used_today(snap, day_key), resets_at)
+
+
+def adjust_quota(db: firestore.firestore.Client, delta: int) -> tuple[bool, dict]:
+    """Atomically add `delta` to today's usage (run via asyncio.to_thread).
+
+    delta=+1 reserves a slot and returns (False, quota) if the limit is already
+    reached. delta=-1 refunds a slot (used when an audit fails).
+    """
+    day_key, resets_at = quota_window()
+    ref = db.collection(QUOTA_COLLECTION).document(QUOTA_DOC_ID)
+
+    @transactional
+    def _txn(transaction) -> tuple[int, bool]:
+        used = _used_today(ref.get(transaction=transaction), day_key)
+        if delta > 0 and used >= DAILY_UPLOAD_LIMIT:
+            return used, False
+        new_used = max(0, used + delta)
+        transaction.set(ref, {"day": day_key, "count": new_used})
+        return new_used, True
+
+    used, ok = _txn(db.transaction())
+    return ok, quota_payload(used, resets_at)
+
+
+async def refund_quota() -> None:
+    try:
+        await asyncio.to_thread(adjust_quota, app.state.db, -1)
+    except Exception:
+        logger.exception("Failed to refund upload quota.")
+
+
+# --------------------------------------------------------------------------- #
 # Routes
 # --------------------------------------------------------------------------- #
 @app.get("/health", include_in_schema=False)
 async def health() -> dict:
     return {"status": "ok"}
+
+
+@app.get("/api/quota")
+async def get_quota() -> dict:
+    """How many uploads are left today and when the limit resets."""
+    return await asyncio.to_thread(read_quota, app.state.db)
 
 
 @app.post("/api/audit", response_model=AuditResponse)
@@ -225,23 +308,39 @@ async def audit_receipt(
             detail=f"File too large. Maximum size is {MAX_UPLOAD_BYTES // (1024 * 1024)} MB.",
         )
 
-    # 2. Audit with Gemini (with exponential backoff on 429s)
-    raw_response = await call_gemini_with_backoff(image_bytes, mime_type, start_date, end_date)
+    # 2. Reserve one slot from the daily limit (atomic)
+    reserved, quota = await asyncio.to_thread(adjust_quota, app.state.db, 1)
+    if not reserved:
+        retry_after = max(1, int((datetime.fromisoformat(quota["resets_at"]) - datetime.now(timezone.utc)).total_seconds()))
+        raise HTTPException(
+            status_code=429,
+            detail=f"Daily upload limit reached ({quota['limit']}/{quota['limit']}). It resets at the time shown above.",
+            headers={"Retry-After": str(retry_after)},
+        )
 
-    # 3. Parse + validate
-    result = parse_gemini_json(raw_response)
-
-    # 4. Persist to Firestore (blocking client -> worker thread)
     try:
-        doc_id = await asyncio.to_thread(save_audit, app.state.db, result, start_date, end_date)
-    except Exception:
-        logger.exception("Failed to write audit result to Firestore.")
-        raise HTTPException(status_code=500, detail="Failed to save the audit result.")
+        # 3. Audit with Gemini (with exponential backoff on 429s)
+        raw_response = await call_gemini_with_backoff(image_bytes, mime_type, start_date, end_date)
 
-    # 5. Respond
+        # 4. Parse + validate
+        result = parse_gemini_json(raw_response)
+
+        # 5. Persist to Firestore (blocking client -> worker thread)
+        try:
+            doc_id = await asyncio.to_thread(save_audit, app.state.db, result, start_date, end_date)
+        except Exception:
+            logger.exception("Failed to write audit result to Firestore.")
+            raise HTTPException(status_code=500, detail="Failed to save the audit result.")
+    except BaseException:
+        # The audit did not complete, so give the slot back.
+        await refund_quota()
+        raise
+
+    # 6. Respond
     return AuditResponse(
         id=doc_id,
         timestamp=datetime.now(timezone.utc).isoformat(),
+        quota=quota,
         **result.model_dump(),
     )
 

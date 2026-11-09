@@ -136,6 +136,20 @@
             background: linear-gradient(90deg, var(--border), transparent);
         }
 
+        /* Upload quota */
+        .quota-main { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+        .quota-count { font-size: 40px; font-weight: 800; letter-spacing: -1px; line-height: 1; color: var(--green); }
+        .quota-of { font-size: 16px; font-weight: 600; color: var(--text-muted); }
+        .quota-unit { font-size: 13px; color: var(--text-secondary); }
+        .quota-bar { height: 8px; border-radius: 8px; background: rgba(108,92,231,0.12); margin: 16px 0 12px; overflow: hidden; }
+        .quota-bar-fill { height: 100%; width: 0; border-radius: 8px; background: var(--green); transition: width 0.5s ease, background 0.3s ease; }
+        .quota-reset { font-size: 12px; color: var(--text-secondary); }
+        .quota-reset strong { color: var(--text-primary); font-weight: 600; }
+        .quota-card.low .quota-count { color: var(--yellow); }
+        .quota-card.low .quota-bar-fill { background: var(--yellow); }
+        .quota-card.empty .quota-count { color: var(--red); }
+        .quota-card.empty .quota-bar-fill { background: var(--red); }
+
         /* Date inputs */
         .date-grid {
             display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
@@ -401,6 +415,18 @@
             <p class="app-subtitle">AI-powered receipt verification system</p>
         </div>
 
+        <!-- Upload Limit Card -->
+        <div class="card quota-card" id="quota-card">
+            <div class="section-label">Upload Limit</div>
+            <div class="quota-main">
+                <span class="quota-count" id="quota-remaining">–</span>
+                <span class="quota-of" id="quota-total"></span>
+                <span class="quota-unit">uploads left today</span>
+            </div>
+            <div class="quota-bar"><div class="quota-bar-fill" id="quota-bar-fill"></div></div>
+            <div class="quota-reset" id="quota-reset">Checking your limit…</div>
+        </div>
+
         <!-- Audit Window Card -->
         <div class="card">
             <div class="section-label">Audit Window</div>
@@ -461,6 +487,67 @@
 
         let selectedFile = null;
 
+        // ---- Upload limit ----
+        const quotaCard = document.getElementById('quota-card');
+        const quotaRemainingEl = document.getElementById('quota-remaining');
+        const quotaTotalEl = document.getElementById('quota-total');
+        const quotaBarFill = document.getElementById('quota-bar-fill');
+        const quotaResetEl = document.getElementById('quota-reset');
+        let quotaExhausted = false;
+        let quotaResetsAt = null;
+
+        function formatDuration(ms) {
+            const totalMin = Math.max(0, Math.ceil(ms / 60000));
+            const h = Math.floor(totalMin / 60);
+            const m = totalMin % 60;
+            return h > 0 ? `${h}h ${m}m` : `${m}m`;
+        }
+
+        function renderQuota(q) {
+            if (!q) return;
+            quotaExhausted = q.remaining <= 0;
+            quotaResetsAt = new Date(q.resets_at);
+
+            quotaRemainingEl.textContent = q.remaining;
+            quotaTotalEl.textContent = `/ ${q.limit}`;
+            quotaBarFill.style.width = (q.limit ? (q.remaining / q.limit) * 100 : 0) + '%';
+            quotaCard.classList.toggle('empty', quotaExhausted);
+            quotaCard.classList.toggle('low', !quotaExhausted && q.remaining <= q.limit * 0.25);
+
+            updateQuotaCountdown();
+            updateButtonState();
+        }
+
+        function updateQuotaCountdown() {
+            if (!quotaResetsAt) return;
+            const ms = quotaResetsAt - new Date();
+            if (ms <= 0) { loadQuota(); return; }
+
+            const now = new Date();
+            const sameDay = quotaResetsAt.toDateString() === now.toDateString();
+            const time = quotaResetsAt.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+            const when = sameDay
+                ? `today at ${time}`
+                : `${quotaResetsAt.toLocaleDateString([], { weekday: 'short' })} at ${time}`;
+            quotaResetEl.innerHTML = `Limit resets to full in <strong>${formatDuration(ms)}</strong> (${when}, your local time)`;
+        }
+
+        function updateButtonState() {
+            auditBtn.disabled = !selectedFile || quotaExhausted;
+        }
+
+        async function loadQuota() {
+            try {
+                const res = await fetch('/api/quota');
+                if (res.ok) renderQuota(await res.json());
+            } catch (e) {
+                quotaResetEl.textContent = 'Could not load your upload limit.';
+            }
+        }
+
+        loadQuota();
+        setInterval(updateQuotaCountdown, 30000);
+
         // Drag and drop
         uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('drag-over'); });
         uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('drag-over'));
@@ -481,11 +568,15 @@
             uploadZone.classList.add('has-file');
             fileNameEl.style.display = 'flex';
             fileNameText.textContent = file.name.length > 28 ? file.name.substring(0, 25) + '...' : file.name;
-            auditBtn.disabled = false;
+            updateButtonState();
         }
 
         auditBtn.addEventListener('click', async () => {
             if (!selectedFile) return;
+            if (quotaExhausted) {
+                showError('Daily upload limit reached. Check the reset time above.');
+                return;
+            }
 
             const startDate = document.getElementById('start-date').value;
             const endDate = document.getElementById('end-date').value;
@@ -520,12 +611,14 @@
 
                 const data = await response.json();
                 renderResult(data);
+                if (data.quota) renderQuota(data.quota);
             } catch (error) {
                 showError(error.message);
+                loadQuota();
             } finally {
                 auditBtn.classList.remove('loading');
                 auditBtn.innerHTML = 'Run Audit';
-                auditBtn.disabled = false;
+                updateButtonState();
                 fileInput.value = '';
             }
         });
